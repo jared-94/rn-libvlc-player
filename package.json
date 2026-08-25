@@ -1,0 +1,39 @@
+{
+  "name": "rn-libvlc-player",
+  "version": "1.0.0",
+  "description": "LibVLC-based Fabric video player for bare React Native projects (no Expo dependency)",
+  "main": "src/index.tsx",
+  "types": "src/index.tsx",
+  "files": [
+    "android",
+    "ios",
+    "src",
+    "*.podspec"
+  ],
+  "codegenConfig": {
+    "name": "rnlibvlcplayer",
+    "type": "components",
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "com.rnlibvlcplayer"
+    },
+    "ios": {
+      "componentProvider": {
+        "RnLibvlcPlayerView": "RnLibvlcPlayerView"
+      }
+    }
+  },
+  "keywords": ["react-native", "vlc", "libvlc", "player", "video", "streaming", "fabric"],
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "@react-native/typescript-config": "0.87.0",
+    "@types/react": "^19.2.0",
+    "react": "19.2.3",
+    "react-native": "0.87.0",
+    "typescript": "^6.0.3"
+  }
+}

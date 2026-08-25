@@ -1,0 +1,63 @@
+buildscript {
+  ext.RnLibvlcPlayer = [
+    kotlinVersion: "2.2.0",
+    minSdkVersion: 26,
+    compileSdkVersion: 37,
+    targetSdkVersion: 36,
+  ]
+
+  ext.getExtOrDefault = { prop ->
+    if (rootProject.ext.has(prop)) {
+      return rootProject.ext.get(prop)
+    }
+    return RnLibvlcPlayer[prop]
+  }
+
+  repositories {
+    google()
+    mavenCentral()
+  }
+
+  dependencies {
+    classpath "com.android.tools.build:gradle:8.7.2"
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${getExtOrDefault('kotlinVersion')}"
+  }
+}
+
+apply plugin: "com.android.library"
+apply plugin: "com.facebook.react"
+
+repositories {
+  google()
+  mavenCentral()
+}
+
+android {
+  namespace "com.rnlibvlcplayer"
+
+  compileSdkVersion getExtOrDefault("compileSdkVersion")
+
+  defaultConfig {
+    minSdkVersion getExtOrDefault("minSdkVersion")
+    targetSdkVersion getExtOrDefault("targetSdkVersion")
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation "com.facebook.react:react-android"
+  // libvlc-all ships a prebuilt AAR (native libvlc/libvlcjni .so per ABI) —
+  // no CMake build needed here. Verified 16KB-page-size aligned on the
+  // arm64-v8a/x86_64 ABIs Google Play actually requires it for (armeabi-v7a/x86
+  // libc++_shared.so is not aligned, but 32-bit ABIs are exempt from the
+  // requirement) — see CLAUDE.md-style verification notes before bumping this.
+  implementation "org.videolan.android:libvlc-all:3.7.5"
+}

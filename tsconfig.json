@@ -1,0 +1,10 @@
+{
+    "extends": "@react-native/typescript-config",
+    "compilerOptions": {
+        "types": [],
+        "preserveSymlinks": true
+    },
+    "include": [
+        "src/**/*"
+    ]
+}

@@ -164,6 +164,18 @@ static const NSTimeInterval kStallThresholdMs = 2500;
       _player.videoAspectRatio = [NSString stringWithFormat:@"%d:%d", (int)size.width, (int)size.height];
     }
   }
+  // VLCKit 4.x installs its own video-rendering subview into `self` once
+  // `_player.drawable = self` is set, and that subview doesn't reliably
+  // keep pace with Fabric-driven bounds changes on `self` (unlike
+  // MobileVLCKit 3.x) — confirmed on-device: a thin black band appears
+  // where the container grew after the real aspect ratio replaced the
+  // initial DEFAULT_ASPECT_RATIO-sized guess, and only a full window
+  // relayout (e.g. backgrounding/foregrounding the app) ever caught it up.
+  // Force it explicitly on every layout pass instead of relying on
+  // VLCKit's own (apparently unreliable) autoresizing.
+  for (UIView *subview in self.subviews) {
+    subview.frame = self.bounds;
+  }
 }
 
 #pragma mark - Player lifecycle
@@ -208,6 +220,16 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
   _player = [[VLCMediaPlayer alloc] initWithLibrary:_library];
   _player.delegate = self;
   _player.drawable = self;
+  // videoFitMode is new in VLCKit 4.x (didn't exist in MobileVLCKit 3.x,
+  // which always stretched video to exactly fill the given drawable). Its
+  // default preserves the video's own aspect ratio inside the drawable
+  // instead — confirmed on-device: a thin black letterbox band appeared
+  // above the video after the 4.x migration, on every camera, matching this
+  // exactly. JS already sizes the container from the reported aspect ratio
+  // (see videoPlayer.js's setAspectRatio), so let VLCKit fill the exact
+  // bounds it's given rather than double-letterboxing on top of that.
+  _player.videoFitMode = VLCVideoFitNone;
+  _player.scaleFactor = 0;
 
   // hwDecoderEnabled/hwDecoderForced are accepted for cross-platform prop
   // parity with Android but are currently a no-op here: VLCKit uses

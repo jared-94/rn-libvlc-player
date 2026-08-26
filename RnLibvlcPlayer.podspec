@@ -7,15 +7,12 @@ Pod::Spec.new do |s|
   s.version      = package['version']
   s.summary      = package['description']
   s.license      = "MIT"
-  s.homepage     = "https://github.com"
-  s.authors      = "JeedomConnect"
+  s.homepage     = "https://github.com/jared-94/rn-libvlc-player"
+  s.authors      = "jared-94"
 
   s.platforms    = { :ios => "16.0" }
-  # Never actually fetched — this package is only ever consumed locally via
-  # the app's "file:" dependency + CocoaPods autolinking's :path resolution
-  # (same as every other package here), so this URL doesn't need to resolve.
-  # CocoaPods' spec validation just wants a non-empty :source.
-  s.source       = { :git => "https://github.com/jeedomconnect/rn-libvlc-player.git", :tag => "v#{s.version}" }
+
+  s.source       = { :git => "https://github.com/jared-94/rn-libvlc-player.git", :tag => "v#{s.version}" }
   s.static_framework = true
 
   s.source_files = "ios/**/*.{h,m,mm}"

@@ -73,9 +73,9 @@ class RnLibvlcPlayerView extends TextureView implements
     // The decoded frame's actual pixel dimensions, from IVLCVout's own layout
     // callback — a more reliable source than Media.VideoTrack container
     // metadata, which has been observed to report 0x0 for at least one
-    // real-world RTSP source (Dahua VTO door camera) even once frames are
-    // decoding fine. Used as a fallback for the aspectRatio/videoSize reported
-    // in onVideoLoad when the track metadata isn't available.
+    // real-world RTSP source even once frames are decoding fine. Used as a
+    // fallback for the aspectRatio/videoSize reported in onVideoLoad when the
+    // track metadata isn't available.
     private int mContentVideoWidth = 0;
     private int mContentVideoHeight = 0;
 
@@ -116,12 +116,12 @@ class RnLibvlcPlayerView extends TextureView implements
     // Stall watchdog: libVLC's own event listener stays completely silent
     // (no Buffering/Error/Stopped) if a live RTSP stream freezes mid-playback
     // instead of cleanly stopping — observed on-device as `currentTime` simply
-    // no longer advancing while `isPlaying()` keeps reporting true. The app's
-    // own auto-reload logic (videoPlayer.js's onBuffering handler) only reacts
-    // to a *new* low-bufferRate event, so without this, a silent stall never
-    // recovers. We track how long currentTime has been unchanged and, past
+    // no longer advancing while `isPlaying()` keeps reporting true. A
+    // consumer's auto-reload logic typically only reacts to a *new*
+    // low-bufferRate event, so without this, a silent stall never recovers.
+    // We track how long currentTime has been unchanged and, past
     // STALL_THRESHOLD_MS, synthesize a low-bufferRate Buffering event so that
-    // existing recovery logic kicks in — no app-side change needed.
+    // existing recovery logic kicks in — no consumer-side change needed.
     private static final long STALL_THRESHOLD_MS = 2500;
     private long mLastProgressCurrentTime = -1;
     private long mStalledSinceMs = 0;
@@ -228,7 +228,7 @@ class RnLibvlcPlayerView extends TextureView implements
      * See STALL_THRESHOLD_MS javadoc above the field: detects a silent
      * playback freeze (isPlaying=true but currentTime not advancing, with no
      * libVLC event to signal it) and synthesizes one low-bufferRate Buffering
-     * event so the app's existing auto-reload logic has something to react to.
+     * event so a consumer's existing auto-reload logic has something to react to.
      */
     private void checkStallWatchdog(boolean isPlaying, long currentTime, float position, long totalLength) {
         if (!isPlaying) {
@@ -636,11 +636,10 @@ class RnLibvlcPlayerView extends TextureView implements
             // onSurfaceTextureAvailable will pick this up once it is.
             return;
         }
-        // `autoplay` wins over the initial `paused` value on creation (matches
-        // the app's actual usage: the camera widget always mounts with
-        // `paused={true}` — see videoPlayer.js's `isPaused` initial state —
-        // and relies on `autoplay={isLive}` alone to start live streams).
-        // `paused` only takes over as the ongoing control once the player exists.
+        // `autoplay` wins over the initial `paused` value on creation — this
+        // lets a consumer mount with `paused={true}` even for live streams,
+        // relying on `autoplay={isLive}` alone to start them. `paused` only
+        // takes over as the ongoing control once the player exists.
         createPlayer(mAutoplayProp, false);
     }
 

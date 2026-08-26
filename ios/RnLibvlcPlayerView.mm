@@ -4,7 +4,7 @@
  * same autoplay-vs-paused semantics, same stall watchdog, same
  * always-populate-aspectRatio-or-empty-string guard on onVideoLoad) — see
  * that file's comments for the reasoning behind each of these, most of which
- * came out of an on-device debugging session with a real RTSP camera.
+ * came out of an on-device debugging session against a live RTSP source.
  *
  * Built against VLCKit 4.x (not MobileVLCKit 3.x). Switched after extensive
  * on-device debugging traced a persistent "plays briefly, then flaps
@@ -43,8 +43,8 @@ static const NSTimeInterval kDefaultProgressUpdateIntervalMs = 250;
 // stopping — currentTime simply stops advancing while isPlaying keeps
 // reporting true. VLCKit 4.x's split buffering/state delegates fix the
 // "flapping" symptom, but not this different failure mode, so the watchdog
-// stays: detect it ourselves and synthesize a low-bufferRate event so the
-// app's existing auto-reload logic (videoPlayer.js's onBuffering handler)
+// stays: detect it ourselves and synthesize a low-bufferRate event so a
+// consumer's existing auto-reload logic (typically an onBuffering handler)
 // has something to react to.
 static const NSTimeInterval kStallThresholdMs = 2500;
 
@@ -273,7 +273,7 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
   static dispatch_queue_t sTeardownQueue;
   static dispatch_once_t sTeardownQueueOnce;
   dispatch_once(&sTeardownQueueOnce, ^{
-    sTeardownQueue = dispatch_queue_create("com.jeedomconnect.rnlibvlcplayer.teardown", DISPATCH_QUEUE_SERIAL);
+    sTeardownQueue = dispatch_queue_create("com.rnlibvlcplayer.teardown", DISPATCH_QUEUE_SERIAL);
   });
   dispatch_async(sTeardownQueue, ^{
     @try {
@@ -302,9 +302,9 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
   // recycling specifically to avoid disrupting it in that case, but that
   // broke JS's reload(): with the player never torn down, sourceChanged
   // stayed NO and the rebuild JS was explicitly asking for silently never
-  // happened. Confirmed on-device: two cameras each stuck retrying forever
-  // on their own fixed interval, video never recovering, because every
-  // reload() attempt was a no-op here.
+  // happened. Confirmed on-device: streams stuck retrying forever on their
+  // own fixed interval, video never recovering, because every reload()
+  // attempt was a no-op here.
   //
   // So: DO tear the player down. updateProps:'s `_player == nil` fallback
   // (see needsPlayer below) then guarantees a rebuild on the very next
@@ -384,10 +384,10 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
   // Full rebuild, matching Android's Commands.resume -> doResume ->
   // createPlayer(autoPlay, true) contract, not the old iOS library's weaker
   // play/pause-only `resume` prop — the same command name should mean the
-  // same thing on both platforms. Note: videoPlayer.js no longer calls this
-  // for scrub-seeking (it uses the `paused` prop instead, to avoid throwing
-  // away the seek position a rebuild would cause) — this stays available as
-  // a "hard reconnect" primitive.
+  // same thing on both platforms. Note: a consumer scrub-seeking should
+  // prefer the `paused` prop instead, to avoid throwing away the seek
+  // position a rebuild would cause — this stays available as a "hard
+  // reconnect" primitive.
   [self rebuildPlayerWithAutoplay:autoPlay];
 }
 
@@ -503,13 +503,12 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
     return;
   }
 
-  // Never send a degenerate/partial aspectRatio — the Dahua-camera bug on
-  // Android was caused by exactly that (a "W:0" ratio corrupting the app's
-  // JS-side layout math). Empty string means "unknown", same contract as
-  // Android; videoPlayer.js already has a JS-side snapshot-image fallback
-  // for that case (VLCKit has the same documented dimension-reporting
-  // limitation as libvlc-android for at least some RTSP sources — see
-  // VLCKit#284 — so expect this path to matter here too).
+  // Never send a degenerate/partial aspectRatio — a "W:0" ratio would corrupt
+  // any JS-side layout math that trusts it blindly. Empty string means
+  // "unknown", same contract as Android (VLCKit has the same documented
+  // dimension-reporting limitation as libvlc-android for at least some RTSP
+  // sources — see VLCKit#284 — so consumers should have a fallback for that
+  // case, e.g. a snapshot-image placeholder).
   std::string aspectRatio = (width > 0 && height > 0) ? (std::to_string(width) + ":" + std::to_string(height)) : "";
 
   emitter->onVideoLoad({
@@ -714,11 +713,11 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
   // successful connection, then a silent permanent stop on next recycle).
   BOOL needsPlayer = _uri.length > 0 && _player == nil;
   if (sourceChanged || needsPlayer) {
-    // `autoplay` wins over the initial `paused` value on creation — matches
-    // the app's actual usage (the camera widget always mounts with
-    // `paused={true}` even for live streams, relying on `autoplay={isLive}`
-    // alone to start them). `paused` only takes over as the ongoing control
-    // once the player exists (see the `else if` below).
+    // `autoplay` wins over the initial `paused` value on creation — this
+    // lets a consumer mount with `paused={true}` even for live streams,
+    // relying on `autoplay={isLive}` alone to start them. `paused` only
+    // takes over as the ongoing control once the player exists (see the
+    // `else if` below).
     [self rebuildPlayerWithAutoplay:_autoplayProp];
   } else if (oldViewProps.paused != newViewProps.paused) {
     [self applyPausedModifier:newViewProps.paused];

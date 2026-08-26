@@ -173,8 +173,15 @@ static const NSTimeInterval kStallThresholdMs = 2500;
   // relayout (e.g. backgrounding/foregrounding the app) ever caught it up.
   // Force it explicitly on every layout pass instead of relying on
   // VLCKit's own (apparently unreliable) autoresizing.
+  // Only touch subviews whose frame is actually stale — layoutSubviews can
+  // fire very frequently (progress ticks, scroll, etc.) and unconditionally
+  // reassigning frame on every pass forces VLCKit to redo internal surface
+  // setup each time, which may be adding contention on top of an
+  // already-stressed decoder pipeline for demanding streams.
   for (UIView *subview in self.subviews) {
-    subview.frame = self.bounds;
+    if (!CGRectEqualToRect(subview.frame, self.bounds)) {
+      subview.frame = self.bounds;
+    }
   }
 }
 

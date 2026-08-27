@@ -88,6 +88,20 @@ static const NSTimeInterval kStallThresholdMs = 2500;
   BOOL _hasReportedStall;
 
   NSString *_videoInfoHash;
+
+  // Guards against an unbounded pile-up of native players/threads when a
+  // source stalls at the network level (confirmed on-device: a demux thread
+  // blocked forever in a socket read, with no VLC-level timeout — see
+  // releasePlayer's background-queue comment). -stop can then take
+  // arbitrarily long to return, but nothing previously stopped
+  // rebuildPlayerWithAutoplay: from constructing ANOTHER player in the
+  // meantime (every ~10s, per the JS reload watchdog) — each one blocking
+  // its own demux thread the same way, none of which the serial teardown
+  // queue could ever catch up on. Tracked here instead so a new rebuild
+  // waits for the in-flight teardown to actually finish first.
+  BOOL _teardownInFlight;
+  BOOL _hasPendingRebuild;
+  BOOL _pendingRebuildAutoplay;
 }
 
 + (void)load
@@ -208,6 +222,19 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
 - (void)rebuildPlayerWithAutoplay:(BOOL)autoplay
 {
   [self releasePlayer];
+
+  // A previous teardown's -stop is still running in the background (see
+  // releasePlayer) — most likely blocked on a stalled network read that may
+  // never return on its own. Building a new player now would just pile
+  // another one on top, each with its own threads that can never be
+  // reclaimed. Defer: releasePlayer's completion handler re-invokes this
+  // once the in-flight teardown actually finishes.
+  if (_teardownInFlight) {
+    _hasPendingRebuild = YES;
+    _pendingRebuildAutoplay = autoplay;
+    return;
+  }
+
   _lastProgressCurrentTime = -1;
   _stalledSinceMs = 0;
   _hasReportedStall = NO;
@@ -298,12 +325,14 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
   _player = nil;
   _library = nil;
   _isReleased = YES;
+  _teardownInFlight = YES;
 
   static dispatch_queue_t sTeardownQueue;
   static dispatch_once_t sTeardownQueueOnce;
   dispatch_once(&sTeardownQueueOnce, ^{
     sTeardownQueue = dispatch_queue_create("com.rnlibvlcplayer.teardown", DISPATCH_QUEUE_SERIAL);
   });
+  __weak __typeof(self) weakSelf = self;
   dispatch_async(sTeardownQueue, ^{
     @try {
       [playerToStop stop];
@@ -316,6 +345,17 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
     // the block end (here, off the main thread) is what actually drops the
     // last reference and triggers dealloc.
     (void)libraryToRelease;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      __typeof(self) strongSelf = weakSelf;
+      if (strongSelf == nil) {
+        return;
+      }
+      strongSelf->_teardownInFlight = NO;
+      if (strongSelf->_hasPendingRebuild) {
+        strongSelf->_hasPendingRebuild = NO;
+        [strongSelf rebuildPlayerWithAutoplay:strongSelf->_pendingRebuildAutoplay];
+      }
+    });
   });
 }
 

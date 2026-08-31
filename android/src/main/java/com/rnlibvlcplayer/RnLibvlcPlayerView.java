@@ -548,26 +548,12 @@ class RnLibvlcPlayerView extends TextureView implements
             return;
         }
 
-        try {
-            final IVLCVout vout = mMediaPlayer.getVLCVout();
-            vout.removeCallback(callback);
-            vout.detachViews();
-        } catch (Exception e) {
-            Log.w(TAG, "Error detaching VLC views", e);
-        }
+        final MediaPlayer playerToRelease = mMediaPlayer;
+        final LibVLC libvlcToRelease = libvlc;
 
-        try {
-            mMediaPlayer.release();
-        } catch (Exception e) {
-            Log.w(TAG, "Error releasing MediaPlayer", e);
-        }
-
-        try {
-            libvlc.release();
-        } catch (Exception e) {
-            Log.w(TAG, "Error releasing LibVLC", e);
-        }
-
+        // Detach the fields synchronously so no other code path (createPlayer,
+        // a re-entrant stopPlayback, etc.) can touch these instances once we
+        // start tearing them down below.
         mMediaPlayer = null;
         libvlc = null;
         isReleased = true;
@@ -575,6 +561,37 @@ class RnLibvlcPlayerView extends TextureView implements
             mProgressUpdateHandler.removeCallbacks(mProgressUpdateRunnable);
             mProgressUpdateRunnable = null;
         }
+
+        try {
+            final IVLCVout vout = playerToRelease.getVLCVout();
+            vout.removeCallback(callback);
+            vout.detachViews();
+        } catch (Exception e) {
+            Log.w(TAG, "Error detaching VLC views", e);
+        }
+
+        // MediaPlayer.release()/LibVLC.release() can block the calling thread
+        // for several seconds: natively this is
+        // libvlc_media_player_release -> input_Close -> vlc_join, which waits
+        // for VLC's internal input thread to fully tear down (e.g. closing a
+        // stalled/reconnecting RTSP socket). releasePlayer() is reached from
+        // onDetachedFromWindow(), which Fabric calls synchronously on the main
+        // thread while dispatching a mount batch — blocking there produced a
+        // reproducible ANR (main thread stuck in vlc_join) reported on the
+        // Play Console after switching to this VLC-based player. Do the
+        // actual native release on a background thread instead.
+        new Thread(() -> {
+            try {
+                playerToRelease.release();
+            } catch (Exception e) {
+                Log.w(TAG, "Error releasing MediaPlayer", e);
+            }
+            try {
+                libvlcToRelease.release();
+            } catch (Exception e) {
+                Log.w(TAG, "Error releasing LibVLC", e);
+            }
+        }, "VLCPlayerRelease").start();
     }
 
     /*************

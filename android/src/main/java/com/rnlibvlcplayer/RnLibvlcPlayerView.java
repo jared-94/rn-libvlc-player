@@ -309,10 +309,19 @@ class RnLibvlcPlayerView extends TextureView implements
     private final MediaPlayer.EventListener mPlayerListener = new MediaPlayer.EventListener() {
         @Override
         public void onEvent(MediaPlayer.Event event) {
-            boolean isPlaying = mMediaPlayer.isPlaying();
-            long currentTime = mMediaPlayer.getTime();
-            float position = mMediaPlayer.getPosition();
-            long totalLength = mMediaPlayer.getLength();
+            // mMediaPlayer can go null between when libVLC posts this event onto
+            // the main-thread Handler queue and when it actually runs: releasePlayer()
+            // (also main-thread, e.g. via onDetachedFromWindow) nulls the field
+            // synchronously as part of teardown, but an already-queued event message
+            // still fires afterward. Snapshot locally and bail rather than NPE.
+            final MediaPlayer player = mMediaPlayer;
+            if (player == null) {
+                return;
+            }
+            boolean isPlaying = player.isPlaying();
+            long currentTime = player.getTime();
+            float position = player.getPosition();
+            long totalLength = player.getLength();
             WritableMap map = Arguments.createMap();
             map.putBoolean("isPlaying", isPlaying);
             map.putDouble("position", position);

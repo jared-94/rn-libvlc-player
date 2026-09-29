@@ -71,6 +71,12 @@ export interface NativeProps extends ViewProps {
     onVideoPlaying?: DirectEventHandler<VideoStatusEvent>;
     onVideoPaused?: DirectEventHandler<VideoStatusEvent>;
     onVideoStopped?: DirectEventHandler<VideoStatusEvent>;
+    // Fires once when playback reaches the natural end of the media (libVLC's
+    // MediaPlayer.Event.EndReached / VLCKit's VLCMediaPlayerStateEnded) — distinct
+    // from onVideoStopped, which also fires for other transitions (e.g. a live
+    // stream disconnecting) and is deliberately NOT treated as "playback finished"
+    // elsewhere in this library (see the Android/iOS Stopped-case comments).
+    onVideoEnd?: DirectEventHandler<VideoStatusEvent>;
     onVideoError?: DirectEventHandler<VideoStatusEvent>;
     onVideoBuffering?: DirectEventHandler<VideoBufferingEvent>;
     onVideoProgress?: DirectEventHandler<VideoProgressEvent>;

@@ -56,6 +56,11 @@ class RnLibvlcPlayerView extends TextureView implements
     private static final String EVENT_ON_PLAYING = "topVideoPlaying";
     private static final String EVENT_ON_PAUSED = "topVideoPaused";
     private static final String EVENT_ON_STOPPED = "topVideoStopped";
+    // Fires once on MediaPlayer.Event.EndReached — the actual "media reached its
+    // natural end" signal, distinct from Stopped (which also fires for other
+    // transitions, e.g. a live stream disconnecting, and is deliberately not
+    // treated as "playback finished" — see the Stopped case below).
+    private static final String EVENT_ON_END = "topVideoEnd";
     private static final String EVENT_ON_ERROR = "topVideoError";
     private static final String EVENT_ON_BUFFERING = "topVideoBuffering";
     private static final String EVENT_ON_PROGRESS = "topVideoProgress";
@@ -354,6 +359,14 @@ class RnLibvlcPlayerView extends TextureView implements
                     // the prop, never by this event.
                     map.putString("type", "Stopped");
                     emitEvent(EVENT_ON_STOPPED, map);
+                    break;
+                case MediaPlayer.Event.EndReached:
+                    // The actual "reached the end of the media" signal — was
+                    // never wired up at all before (not a flaky event, simply
+                    // missing), which meant no consumer had a reliable way to
+                    // detect real end-of-playback for a finite (non-live) source.
+                    map.putString("type", "Ended");
+                    emitEvent(EVENT_ON_END, map);
                     break;
                 case MediaPlayer.Event.EncounteredError:
                     map.putString("type", "Error");

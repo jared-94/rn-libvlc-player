@@ -43,6 +43,7 @@ export interface VLCPlayerProps {
     onPlaying?: (e: VideoStatusEvent) => void;
     onPaused?: (e: VideoStatusEvent) => void;
     onStopped?: (e: VideoStatusEvent) => void;
+    onEnd?: (e: VideoStatusEvent) => void;
     onError?: (e: VideoStatusEvent) => void;
     onBuffering?: (e: VideoBufferingEvent) => void;
     onProgress?: (e: VideoProgressEvent) => void;
@@ -143,6 +144,11 @@ export const VLCPlayer = React.forwardRef<VLCPlayerHandle, VLCPlayerProps>(
                 onVideoStopped={
                     props.onStopped
                         ? (e: NativeSyntheticEvent<VideoStatusEvent>) => props.onStopped?.(e.nativeEvent)
+                        : undefined
+                }
+                onVideoEnd={
+                    props.onEnd
+                        ? (e: NativeSyntheticEvent<VideoStatusEvent>) => props.onEnd?.(e.nativeEvent)
                         : undefined
                 }
                 onVideoError={

@@ -661,6 +661,8 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
     emitter->onVideoPaused({.isPlaying = isPlaying, .position = position, .currentTime = currentTime, .duration = duration, .type = type});
   } else if ([which isEqualToString:@"stopped"]) {
     emitter->onVideoStopped({.isPlaying = isPlaying, .position = position, .currentTime = currentTime, .duration = duration, .type = type});
+  } else if ([which isEqualToString:@"end"]) {
+    emitter->onVideoEnd({.isPlaying = isPlaying, .position = position, .currentTime = currentTime, .duration = duration, .type = type});
   } else if ([which isEqualToString:@"error"]) {
     emitter->onVideoError({.isPlaying = isPlaying, .position = position, .currentTime = currentTime, .duration = duration, .type = type});
   }
@@ -692,6 +694,12 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
       // as Android: forcing a paused state on a transient RTSP `Stopped`
       // would freeze live streams. `paused` is only ever driven by the prop.
       [self emitStatusEventNamed:@"stopped" type:@"Stopped"];
+      break;
+    case VLCMediaPlayerStateEnded:
+      // The actual "reached the end of the media" signal, mirroring Android's
+      // MediaPlayer.Event.EndReached — was never wired up at all before (fell
+      // into `default:` below), not a flaky event, simply missing.
+      [self emitStatusEventNamed:@"end" type:@"Ended"];
       break;
     case VLCMediaPlayerStateError:
       // Fix vs. the old iOS library: that one only fired onVideoError from

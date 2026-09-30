@@ -689,18 +689,27 @@ static NSString *RNLibvlcNormalizeOption(NSString *option)
       [self emitStatusEventNamed:@"paused" type:@"Paused"];
       break;
     case VLCMediaPlayerStateStopped:
-    case VLCMediaPlayerStateStopping:
+    case VLCMediaPlayerStateStopping: {
       // Deliberately does not touch _isPaused/_pausedProp here — same reason
       // as Android: forcing a paused state on a transient RTSP `Stopped`
       // would freeze live streams. `paused` is only ever driven by the prop.
-      [self emitStatusEventNamed:@"stopped" type:@"Stopped"];
+      //
+      // VLCKit 4.0.0a23's VLCMediaPlayerState has no `Ended` case at all
+      // (confirmed against the actual shipped header) — unlike Android's
+      // libvlc, which fires a distinct MediaPlayer.Event.EndReached. Reaching
+      // the natural end of a finite media item also lands here as Stopped, so
+      // disambiguate it from a real stop/disconnect: a live or unknown-length
+      // stream reports duration 0, while a finite item that actually finished
+      // parks at position ~1.0.
+      double duration = (double)_player.media.length.value.doubleValue;
+      double position = _player.position;
+      if (duration > 0 && position >= 0.98) {
+        [self emitStatusEventNamed:@"end" type:@"Ended"];
+      } else {
+        [self emitStatusEventNamed:@"stopped" type:@"Stopped"];
+      }
       break;
-    case VLCMediaPlayerStateEnded:
-      // The actual "reached the end of the media" signal, mirroring Android's
-      // MediaPlayer.Event.EndReached — was never wired up at all before (fell
-      // into `default:` below), not a flaky event, simply missing.
-      [self emitStatusEventNamed:@"end" type:@"Ended"];
-      break;
+    }
     case VLCMediaPlayerStateError:
       // Fix vs. the old iOS library: that one only fired onVideoError from
       // VLCCustomDialogRendererProtocol's cert/login dialog callbacks, never
